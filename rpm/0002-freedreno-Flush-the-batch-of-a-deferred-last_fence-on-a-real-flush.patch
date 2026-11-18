@@ -1,0 +1,30 @@
+Subject: [PATCH] freedreno: Flush the batch of a deferred last_fence on a real flush
+
+eglCreateSync() flushes with PIPE_FLUSH_DEFERRED, which leaves the batch
+unflushed but still stores its fence in ctx->last_fence. A following
+glFlush() with no rendering in between then takes the "reuse last_fence"
+shortcut and returns without flushing that batch, so the fence never
+becomes ready. A waiter on another context (pctx == NULL, e.g.
+eglClientWaitSync() from a different thread) can't flush it, and blocks
+until the owner renders again.
+
+Gecko's SharedSurface_EGLImage does exactly fCreateSync() + fFlush() on
+the producer and waits on the consumer thread while holding a lock the
+producer needs for its next frame, which deadlocks.
+
+Flush the last_fence's batch when the flush is not deferred.
+---
+diff --git a/src/gallium/drivers/freedreno/freedreno_context.c b/src/gallium/drivers/freedreno/freedreno_context.c
+index 9c0fc81..e684718 100644
+--- a/src/gallium/drivers/freedreno/freedreno_context.c
++++ b/src/gallium/drivers/freedreno/freedreno_context.c
+@@ -86,6 +86,9 @@ fd_context_flush(struct pipe_context *pctx, struct pipe_fence_handle **fencep,
+     * a fence, re-use the last one:
+     */
+    if (ctx->last_fence) {
++      if (!(flags & PIPE_FLUSH_DEFERRED) && ctx->last_fence->batch)
++         fd_batch_flush(ctx->last_fence->batch);
++
+       fd_pipe_fence_ref(&fence, ctx->last_fence);
+       fd_bc_dump(ctx, "%p: reuse last_fence, remaining:\n", ctx);
+       goto out;

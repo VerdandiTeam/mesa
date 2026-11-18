@@ -24,6 +24,7 @@ Source0:    %{name}-%{version}.tar.bz2
 #Patch0:     support-python38.patch
 #Patch1:     disable-avx-support.diff
 Patch0:     0001-freedreno-Only-flush-a-fence-s-batch-from-its-own-context.patch
+Patch1:     0002-freedreno-Flush-the-batch-of-a-deferred-last_fence-on-a-real-flush.patch
 
 BuildRequires:  pkgconfig(libdrm)
 BuildRequires:  pkgconfig(wayland-client)
